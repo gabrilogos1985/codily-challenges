@@ -1,10 +1,10 @@
+import lombok.Data;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -12,17 +12,28 @@ public class FuelproviderTest {
 
 
     public static final int TIME_WAIT_PER_LITER = 1;
+    private static final int NOT_ENOUGH_FUEL_RESPONSE = -1;
+
+    private int headIndex = 0;
 
     @Test
     public void testEscenarios() {
-        // assertEquals(calculateWaitingTime(new int[]{1}, 1,1,1), 1);
-        assertEquals(calculateWaitingTime(IntStream.range(0, 100_000)
-                .map(v -> 1).toArray(), 1_000_000_000, 1_000_000_000, 1_000_000_000), 33334);
-        assertEquals(calculateWaitingTime(new int[]{1_000_000_000, 1_000_000_000, 1_000_000_000}, 1_000_000_000, 1_000_000_000, 1_000_000_000), 0);
-        assertEquals(calculateWaitingTime(new int[]{5}, 4, 0, 3), -1);
-        assertEquals(calculateWaitingTime(new int[]{2, 8, 4, 3, 2}, 7, 11, 3), 8);
-        assertEquals(calculateWaitingTime(new int[]{1, 2}, 3, 0, 0), 1);
-        assertEquals(calculateWaitingTime(new int[]{1, 2, 1}, 3, 1, 0), 1);
+
+        assertEquals(8, calculateWaitingTime(new int[]{2, 8, 4, 3, 2}, 7, 11, 3));
+        assertEquals(5, calculateWaitingTime(new int[]{2, 3, 5, 5, 3, 2}, 4, 6, 10));
+        assertEquals(-1, calculateWaitingTime(new int[]{2, 3, 5, 7, 7, 5, 3, 2}, 1, 3, 5));
+
+        assertEquals(0, calculateWaitingTime(new int[]{1}, 1,1,1));
+//        assertEquals(33333, calculateWaitingTime(IntStream.range(0, 100_000)
+//                .map(v -> 1).toArray(), 1_000_000_000, 1_000_000_000, 1_000_000_000));
+        //assertEquals(-1, calculateWaitingTime(IntStream.range(0, 100_000).toArray(), 1_000_000_000, 1_000_000_000, 1_000_000_000));
+       //assertEquals(-1, calculateWaitingTime(IntStream.range(0, 77469).toArray(), 1_000_000_000, 1_000_000_000, 1_000_000_000));
+       assertEquals(-1, calculateWaitingTime(IntStream.range(0, 77458).toArray(), 1_000_000_000, 1_000_000_000, 1_000_000_000));
+        assertEquals(0, calculateWaitingTime(new int[]{1_000_000_000, 1_000_000_000, 1_000_000_000}, 1_000_000_000, 1_000_000_000, 1_000_000_000));
+        assertEquals(NOT_ENOUGH_FUEL_RESPONSE, calculateWaitingTime( new int[]{5}, 4, 0, 3));
+
+        assertEquals(1, calculateWaitingTime(new int[]{1, 2}, 3, 0, 0));
+        assertEquals(1, calculateWaitingTime(new int[]{1, 2, 1}, 3, 1, 0));
     }
 
     private int calculateWaitingTime(final int[] carsArray,
@@ -31,12 +42,14 @@ public class FuelproviderTest {
         LinkedList<FuelDispenser> dispensers = buildDispensers(fuelX, fuelY, fuelZ);
         LinkedList<Integer> carsQueue = buildCarsQueue(carsArray);
         int timeElaplsed = 0;
+        try {
         while (!carsQueue.isEmpty()) {
-            for (int i = 0; i < carsQueue.size(); i++) {
-                if (isDispensersAvaible(dispensers, timeElaplsed)) {
+            int queueSize = carsQueue.size();
+            for (int i = 0; i < queueSize; i++) {
+                if (isDispensersAvaible(dispensers, timeElaplsed) && i == 0) {
                     break;
                 }
-                dispenseForCar(dispensers, carsQueue, timeElaplsed);
+                dispenseForCar(dispensers, carsQueue, timeElaplsed, i);
             }
             timeElaplsed++;
         }
@@ -44,7 +57,45 @@ public class FuelproviderTest {
         return dispensers.stream().map(FuelDispenser::getFinalWaitingTime)
                 .mapToInt(v -> v)
                 .max()
-                .orElse(-1);
+                .orElse(NOT_ENOUGH_FUEL_RESPONSE);
+        } catch (NotEnoughFuelException e) {
+            return  NOT_ENOUGH_FUEL_RESPONSE;
+        }
+    }
+
+    private boolean isDispensersAvaible(final LinkedList<FuelDispenser> dispensers, final int timeElaplsed) {
+        var currentTime = timeElaplsed;
+        boolean isDispensersAvaible = !dispensers.stream().filter(d -> d.isAvailable(currentTime)).findFirst().isPresent();
+        return isDispensersAvaible;
+    }
+
+
+    private void dispenseForCar(final LinkedList<FuelDispenser> dispensers, final LinkedList<Integer> carsQueue,
+                                final int timeElaplsed, int index) {
+        var carFuel = carsQueue.poll();
+        //var carFuel = carsQueue. get(headIndex + index);
+        boolean avaibleFuelForCar = false;
+        boolean isDispatched = false;
+        for (var dispenser : dispensers) {
+            if (dispenser.hasEnoughFuel(carFuel)) {
+                avaibleFuelForCar = true;
+                if (!dispenser.isAvailable(timeElaplsed)) {
+                    continue;
+                }
+                if (dispenser.dispenseFuel(carFuel)) {
+                    isDispatched = true;
+                    //carsQueue.remove(carFuel);
+                    break;
+                }
+            }
+        }
+        if(!isDispatched){
+            carsQueue.add(carFuel);
+        }
+        if (!avaibleFuelForCar) {
+            throw new NotEnoughFuelException("No fue posible dispensar el combustible para el carro " + carFuel);
+            // carsQueue.remove(carFuel);
+        }
     }
 
     private LinkedList<Integer> buildCarsQueue(final int[] carsArray) {
@@ -66,35 +117,6 @@ public class FuelproviderTest {
         return dispensers;
     }
 
-    private boolean isDispensersAvaible(final LinkedList<FuelDispenser> dispensers, final int timeElaplsed) {
-        var currentTime = timeElaplsed;
-        boolean isDispensersAvaible = !dispensers.stream().filter(d -> d.isAvailable(currentTime)).findFirst().isPresent();
-        return isDispensersAvaible;
-    }
-
-    private void dispenseForCar(final LinkedList<FuelDispenser> dispensers, final LinkedList<Integer> carsQueue, final int timeElaplsed) {
-        var carFuel = carsQueue.peek();
-        boolean avaibleFuelForCar = false;
-        for (var dispenser : dispensers) {
-            if (dispenser.getFuel() >= carFuel) {
-                avaibleFuelForCar = true;
-            }
-
-            if (!dispenser.isAvailable(timeElaplsed)) {
-                continue;
-            }
-            if (dispenser.dispenseFuel(carFuel)) {
-                carsQueue.remove(carFuel);
-                break;
-            }
-        }
-
-        if (!avaibleFuelForCar) {
-            carsQueue.remove(carFuel);
-        }
-    }
-
-
     /**
      * No thread safe code.
      **/
@@ -108,11 +130,12 @@ public class FuelproviderTest {
         }
 
         public boolean dispenseFuel(int requestedFuel) {
-            if (requestedFuel > this.fuel) {
+            if (!this.hasEnoughFuel(requestedFuel)) {
                 return false;
             }
             this.fuel -= requestedFuel;
             this.lastWatingTime = requestedFuel;
+           // System.out.printf("Dispense %sliters at time%s\n", requestedFuel,fillingTime);
             this.fillingTime += requestedFuel * TIME_WAIT_PER_LITER;
             return true;
         }
@@ -136,5 +159,21 @@ public class FuelproviderTest {
         public boolean isNotEmpty() {
             return !isEmpty();
         }
+
+        public boolean hasEnoughFuel(final Integer carFuel) {
+            return this.fuel >= carFuel;
+        }
+    }
+
+    private class NotEnoughFuelException extends RuntimeException {
+        public NotEnoughFuelException(final String message) {
+        }
+    }
+
+
+    @Data
+    class Node {
+        private int value;
+        private Node next;
     }
 }

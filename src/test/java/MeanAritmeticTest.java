@@ -41,3 +41,5 @@ public class MeanAritmeticTest {
         return sum / numbers.size();
     }
 }
+
+
