@@ -47,8 +47,8 @@ public class FuelproviderTest {
                 Node car = head;
                 do {
                     if (arePumpsAvailable(dispensers, timeElaplsed)) {
-                        dispenseForCar(dispensers, car, timeElaplsed);
-                    }
+                        dispenseCar(dispensers, car, timeElaplsed);
+                    } else break;
                 } while((car = car.getNext()) != null);
                 timeElaplsed++;
             }
@@ -67,8 +67,7 @@ public class FuelproviderTest {
     }
 
 
-    private void dispenseForCar(final LinkedList<Pump> dispensers, Node car,
-                                final int timeElaplsed) {
+    private void dispenseCar(final LinkedList<Pump> dispensers, Node car, final int timeElaplsed) {
         var carFuel = car.getFuel();
         boolean avaibleFuelForCar = false;
         for (var dispenser : dispensers) {
