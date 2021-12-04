@@ -1,3 +1,5 @@
+package codily.stage1;
+
 import lombok.Data;
 import org.junit.jupiter.api.Test;
 
